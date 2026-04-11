@@ -1,0 +1,30 @@
+# 1. 忽略 CMake 编译产生的几百MB垃圾二进制文件
+build/
+cmake-build-*/
+out/
+
+# 2. 忽略 IDE (如 CLion 或 VSCode) 的本地个性化配置
+.idea/
+.vscode/
+
+# 3. 忽略 STM32CubeMX 每次自动生成的临时项目文件 (保留 .ioc 就够了)
+.mxproject
+
+# 4. 忽略编译过程中的各种中间产物
+*.elf
+*.hex
+*.bin
+*.map
+*.o
+*.d
+
+# ==================================
+# 备用：如果你以后偶尔还要用 Keil 打开
+# ==================================
+MDK-ARM/DebugConfig/
+MDK-ARM/RTE/
+MDK-ARM/*.o
+MDK-ARM/*.d
+MDK-ARM/*.crf
+MDK-ARM/*.htm
+MDK-ARM/*.dep

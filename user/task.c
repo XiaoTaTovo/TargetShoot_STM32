@@ -1,4 +1,6 @@
 #include "task.h"
+
+#include "alarm.h"
 #include "math.h"
 #include "serial.h"
 #include "function.h" // 里面有你的 Task_Counter 神器
@@ -6,6 +8,8 @@
 #include "PID.h"
 #include "ServoPID.h" // 假设这里有你的 ServoPID_Execute
 #include "usart.h"
+#include "OLED.h"
+extern Alarm_Controller_t MyAlarm;
 
 // 1代表任务1(单目标)，2代表任务2(多目标)
 uint8_t System_Mode = 1;
@@ -20,7 +24,8 @@ void Task_Init(void) {
 }
 
 // 👑 这个函数直接放到 main.c 的 while(1) 里面疯狂调用！
-void Task_Scheduler(void) {
+/*void Task_Scheduler(void) {
+ Alarm_Loop(&MyAlarm);
     // 我们用 20ms 的频率来跑整个云台的逻辑 (完美契合舵机 50Hz)
     if (Task_Counter(1, 20)) {
         switch (System_Mode) {
@@ -72,5 +77,32 @@ void Task_Scheduler(void) {
                 }
                 break;
         }
+    }
+}*/
+
+void Task_Scheduler(void) {
+ Alarm_Loop(&MyAlarm);
+
+    // 任务 A：20ms 频率 —— 给 VOFA+ 喂数据 (高速、实时)
+    if (Task_Counter(0, 20)) {
+        if (Target_State == 1) {
+            // 把解包出来的原始误差直接发给 VOFA+
+            VOFA_JustFloat_Send((float)Vision_ErrX, (float)Vision_ErrY);
+        }
+    }
+
+    // 任务 B：100ms 频率 —— 刷新 OLED 屏幕 (低速、肉眼观察)
+    if (Task_Counter(1, 100)) {
+        OLED_Clear();
+        if (Target_State == 1) {
+            OLED_Printf(0, 0, OLED_8X16, "X:%+4d", Vision_ErrX);
+            OLED_Printf(0, 16, OLED_8X16, "Y:%+4d", Vision_ErrY);
+            OLED_ShowString(0, 32, "Target: LOCKED", OLED_8X16);
+        } else {
+            // OLED_ShowString(0, 0, "Wait Target...", OLED_8X16);
+            OLED_Printf(0, 0, OLED_8X16, "Wait Target...");
+
+        }
+        OLED_Update(); // 把显存刷入屏幕
     }
 }

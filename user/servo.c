@@ -32,13 +32,13 @@ static uint16_t Angle_To_CCR(float angle) {
 
 // 控制水平偏航角 (Yaw)
 void Servo_SetYaw(float angle_offset) {
-    uint16_t ccr_val = Angle_To_CCR(angle_offset);
+    uint16_t ccr_val = Angle_To_CCR(-angle_offset);
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, ccr_val);
 }
 
 // 控制上下俯仰角 (Pitch)
 void Servo_SetPitch(float angle_offset) {
-    uint16_t ccr_val = Angle_To_CCR(angle_offset);
+    uint16_t ccr_val = Angle_To_CCR(-angle_offset);
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, ccr_val);
 }
 

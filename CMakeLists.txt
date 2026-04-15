@@ -41,8 +41,8 @@ add_executable(${CMAKE_PROJECT_NAME}
         user/servo.c
         user/ServoPID.c
         user/task.c
-
-        user/serial.c)
+        user/serial.c
+        user/alarm.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)

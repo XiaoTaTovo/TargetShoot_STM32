@@ -35,11 +35,12 @@
 #include "servo.h"
 #include "ServoPID.h"
 #include "task.h"
+#include "alarm.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+Alarm_Controller_t MyAlarm;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -120,22 +121,60 @@ int main(void)
   __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
   __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT);
   OLED_Init();
-    Servo_Init();
-
+  Servo_Init();
+  Alarm_Init(&MyAlarm);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {uint8_t Key_Num = 0;
-    Key_Num = Key_GetNum();
-    if (Key_Num == 3) {
-      HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+  while (1) {
+    uint8_t Key_Num = Key_GetNum();
+
+    // ==========================================
+    // 🟢 按键 1 (PA4)：执行动作测试
+    // ==========================================
+    if (Key_Num == 1) {
+      // 重新开启 PWM (防止之前被急停关掉了)
+      HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+      HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
+
+      Servo_SetYaw(30.0f);    // 先转左右
+      HAL_Delay(500);         // 🌟 等半秒钟，让电流缓过来！
+      Servo_SetPitch(30.0f); // 再转上下
     }
 
-    /* USER CODE END WHILE */
+    // ==========================================
+    // 🟡 按键 2 (PA5)：归中测试
+    // ==========================================
+    else if (Key_Num == 2) {
+      HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+      HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
 
-    /* USER CODE BEGIN 3 */
+      Servo_SetYaw(0.0f);     // 偏航角回正
+      Servo_SetPitch(0.0f);   // 俯仰角回正
+    }
+
+    // ==========================================
+    // 🔴 按键 3 (PB6)：终极软急停 (卸力)
+    // ==========================================
+    else if (Key_Num == 3) {
+      // 瞬间关闭 PWM 输出！舵机会立刻失去力量，变成可以被手掰动的“软态”
+      HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+      HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_4);
+
+      // 顺便翻转一下 LED，告诉你急停成功了
+      Alarm_Start_Beep(&MyAlarm,3);
+    Alarm_Start_Blink(&MyAlarm, 10); // 蜂鸣+闪灯报警，闪3下
+
+
+      /* USER CODE END WHILE */
+
+      /* USER CODE BEGIN 3 */
+    }
+    // 核心：一刻不停地检查串口缓冲区是否有新数据 (非阻塞)
+    Vision_Data_Proceed();
+    // 核心：进入调度中心
+    Task_Scheduler();
   }
   /* USER CODE END 3 */
 }

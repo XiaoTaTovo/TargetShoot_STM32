@@ -21,7 +21,7 @@ uint8_t Key_GetState(void) //获取当前按键状态的子函数，非阻塞式
         return 1;
     if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_5) == GPIO_PIN_RESET)
         return 2;
-    if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_RESET)  // Changed from PB8 to PA6
+    if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6) == GPIO_PIN_RESET)
         return 3;
     return 0;
 }

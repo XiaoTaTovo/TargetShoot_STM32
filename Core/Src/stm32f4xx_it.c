@@ -238,7 +238,6 @@ void USART1_IRQHandler(void)
     Vision_RxBuffer[len] = '\0'; // 封口变成字符串
 
     Vision_RxFlag = 1; // 竖起旗帜
-    Vision_Data_Proceed(); // 立刻去解析数据 (或者放在 main 的 while 里面也可以)
 
     // 4. 重新下达 50 个搬运任务，继续干活！(注意这里是 50，不是你写的 6！)
     HAL_UART_Receive_DMA(&huart1, (uint8_t *)Vision_RxBuffer, 50);

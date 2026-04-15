@@ -2,6 +2,7 @@
 #include "ServoPID.h"
 #include <stdio.h>
 #include <string.h>
+#include <usart.h>
 // 给 PID 准备的输入变量
 int Target_State = 0;
 int Vision_ErrX = 0;
@@ -31,16 +32,40 @@ void Vision_Data_Proceed(void) {
     if (Vision_RxFlag == 1) {
         Vision_RxFlag = 0; // 放下旗帜
 
-        // 假设树莓派发来的是: <X:-120,Y:+045,S:1>
-        // sscanf 会自动去字符串里寻找匹配的格式，抠出 3 个整数。
-        // 如果成功抠出 3 个数字，它会返回 3。
-        int match_count = sscanf(Vision_RxBuffer, "<X:%d,Y:%d,S:%d>", &Vision_ErrX, &Vision_ErrY, &Target_State);
+        // 🌟 核心修复：派侦察兵去找包头 '<'
+        // 把 uint8_t* 强转成 char*，防止编译器报警告
+        char *start_ptr = strchr((char *)Vision_RxBuffer, '<');
 
-        if (match_count == 3) {
-            // 提取成功！把值赋给 PID 的 Actual
-            // 注意：视觉里通常用负数表示偏左，正数表示偏右，你需要根据实际舵机方向决定要不要加负号
-            Yaw_Error = (float) Vision_ErrX;
-            Pitch_Error = (float) Vision_ErrY;
+        // 如果找到了 '<'，就从它所在的位置开始抠数据
+        if (start_ptr != NULL) {
+            int match_count = sscanf(start_ptr, "<X:%d,Y:%d,S:%d>", &Vision_ErrX, &Vision_ErrY, &Target_State);
+
+            if (match_count == 3) {
+                // 提取成功！
+                Yaw_Error = (float) Vision_ErrX;
+                Pitch_Error = (float) Vision_ErrY;
+            }
         }
+    }
+}
+
+// 发送 2 个通道的数据到 VOFA+ 看波形 (比如 Error 和 PID_Out)
+void VOFA_JustFloat_Send(float ch1, float ch2) {
+    // 必须用 static，保证 DMA 发送时数组在内存中不被销毁
+    static float send_data[3];
+
+    if (huart2.gState == HAL_UART_STATE_READY) {
+
+        send_data[0] = ch1; // 通道 1：比如 Yaw_Error
+        send_data[1] = ch2; // 通道 2：比如 PID_Yaw.Out
+
+        // JustFloat 协议的固定包尾 (0x7F800000，即浮点数的正无穷 NaN)
+        ((uint8_t*)&send_data[2])[0] = 0x00;
+        ((uint8_t*)&send_data[2])[1] = 0x00;
+        ((uint8_t*)&send_data[2])[2] = 0x80;
+        ((uint8_t*)&send_data[2])[3] = 0x7F;
+
+        // 召唤 DMA 发送这 3 个浮点数 (总共 3 * 4 = 12 字节)
+        HAL_UART_Transmit_DMA(&huart2, (uint8_t*)send_data, sizeof(send_data));
     }
 }

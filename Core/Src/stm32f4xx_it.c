@@ -53,7 +53,13 @@
 /* USER CODE BEGIN 0 */
 extern uint8_t Vision_RxBuffer[50];
 extern uint8_t Vision_RxFlag;
+extern uint8_t BT_RxBuffer[50];
+extern uint8_t BT_RxFlag;
+
+
+
 extern void Vision_Data_Proceed(void);
+
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -61,7 +67,10 @@ extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim9;
 extern DMA_HandleTypeDef hdma_usart1_rx;
 extern DMA_HandleTypeDef hdma_usart1_tx;
+extern DMA_HandleTypeDef hdma_usart2_rx;
+extern DMA_HandleTypeDef hdma_usart2_tx;
 extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -205,6 +214,34 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
+  * @brief This function handles DMA1 stream5 global interrupt.
+  */
+void DMA1_Stream5_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Stream5_IRQn 0 */
+
+  /* USER CODE END DMA1_Stream5_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart2_rx);
+  /* USER CODE BEGIN DMA1_Stream5_IRQn 1 */
+
+  /* USER CODE END DMA1_Stream5_IRQn 1 */
+}
+
+/**
+  * @brief This function handles DMA1 stream6 global interrupt.
+  */
+void DMA1_Stream6_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Stream6_IRQn 0 */
+
+  /* USER CODE END DMA1_Stream6_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_usart2_tx);
+  /* USER CODE BEGIN DMA1_Stream6_IRQn 1 */
+
+  /* USER CODE END DMA1_Stream6_IRQn 1 */
+}
+
+/**
   * @brief This function handles TIM1 break interrupt and TIM9 global interrupt.
   */
 void TIM1_BRK_TIM9_IRQHandler(void)
@@ -248,6 +285,33 @@ void USART1_IRQHandler(void)
   /* USER CODE BEGIN USART1_IRQn 1 */
 
   /* USER CODE END USART1_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USART2 global interrupt.
+  */
+void USART2_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART2_IRQn 0 */
+  if (__HAL_UART_GET_FLAG(&huart2, UART_FLAG_IDLE) != RESET) {
+    __HAL_UART_CLEAR_IDLEFLAG(&huart2); // 清除报警
+    HAL_UART_DMAStop(&huart2);          // 叫停搬运工
+
+    // 算算蓝牙发了几个字母过来
+    uint8_t len = 50 - __HAL_DMA_GET_COUNTER(huart2.hdmarx);
+    BT_RxBuffer[len] = '\0'; // 封口变成字符串
+
+    BT_RxFlag = 1; // 竖起蓝牙收到数据的旗帜
+
+    // 重新开启蓝牙 DMA 接收
+    HAL_UART_Receive_DMA(&huart2, (uint8_t *)BT_RxBuffer, 50);
+    __HAL_DMA_DISABLE_IT(huart2.hdmarx, DMA_IT_HT);
+  }
+  /* USER CODE END USART2_IRQn 0 */
+  HAL_UART_IRQHandler(&huart2);
+  /* USER CODE BEGIN USART2_IRQn 1 */
+
+  /* USER CODE END USART2_IRQn 1 */
 }
 
 /**

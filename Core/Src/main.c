@@ -47,6 +47,10 @@ Alarm_Controller_t MyAlarm;
 /* USER CODE BEGIN PD */
 uint8_t Vision_RxBuffer[50];//接收树莓派数据的数组
 uint8_t Vision_RxFlag = 0;//接收中断标志位，接收到置1
+
+// 🌟 新增：蓝牙全局变量
+uint8_t BT_RxFlag = 0;
+uint8_t BT_RxBuffer[50] = {0};
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -117,12 +121,17 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim9);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
   HAL_UART_Receive_DMA(&huart1, (uint8_t *)Vision_RxBuffer, 50);
   __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
   __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT);
+  HAL_UART_Receive_DMA(&huart2, (uint8_t *)BT_RxBuffer, 50);
+  __HAL_UART_ENABLE_IT(&huart2, UART_IT_IDLE);
+  __HAL_DMA_DISABLE_IT(huart2.hdmarx, DMA_IT_HT);
   OLED_Init();
   Servo_Init();
   Alarm_Init(&MyAlarm);
+  Task_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -131,45 +140,52 @@ int main(void)
     uint8_t Key_Num = Key_GetNum();
 
     // ==========================================
-    // 🟢 按键 1 (PA4)：执行动作测试
+    // 🟢 按键 1 (PA4)：纯粹的模式切换
     // ==========================================
     if (Key_Num == 1) {
-      // 重新开启 PWM (防止之前被急停关掉了)
-      HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-      HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
-
-      Servo_SetYaw(30.0f);    // 先转左右
-      HAL_Delay(500);         // 🌟 等半秒钟，让电流缓过来！
-      Servo_SetPitch(30.0f); // 再转上下
+      System_Mode++;
+      if (System_Mode > 5) System_Mode = 1;
+      Serial_Printf(&huart1, "MODE:%d\n", System_Mode); // 通知上位机
+      Alarm_Start_Beep(&MyAlarm, 1);
     }
 
     // ==========================================
-    // 🟡 按键 2 (PA5)：归中测试
+    // 🟡 按键 2 (PA5)：复位归中 + 唤醒启动 (Start)
     // ==========================================
     else if (Key_Num == 2) {
-      HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-      HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
+      // 🌟 每次按下，状态翻转 (0变1，1变0)
+      System_Run = !System_Run;
 
-      Servo_SetYaw(0.0f);     // 偏航角回正
-      Servo_SetPitch(0.0f);   // 俯仰角回正
+      if (System_Run == 0) {
+        // 【待机模式】：洗脑 + 回中 + 保持力量！(绝不松手)
+        PID_Init(&PID_Yaw);
+        PID_Init(&PID_Pitch);
+        Servo_SetYaw(0.0f);
+        Servo_SetPitch(0.0f);
+        HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+        HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_4);
+
+        Alarm_Start_Beep(&MyAlarm, 2); // 滴滴两声，提示进入“归中锁死状态”
+      } else {
+        // 【追踪模式】：释放猛兽！
+        Alarm_Start_Beep(&MyAlarm, 1); // 滴一声长音，提示“开始追踪！”
+      }
     }
 
     // ==========================================
-    // 🔴 按键 3 (PB6)：终极软急停 (卸力)
+    // 🔴 按键 3 (PB6)：紧急断电 (Stop)
     // ==========================================
     else if (Key_Num == 3) {
-      // 瞬间关闭 PWM 输出！舵机会立刻失去力量，变成可以被手掰动的“软态”
+      // 🌟 1. 必须先断电！防止舵机收到归零信号乱扭！
       HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
       HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_4);
 
-      // 顺便翻转一下 LED，告诉你急停成功了
-      Alarm_Start_Beep(&MyAlarm,3);
-    Alarm_Start_Blink(&MyAlarm, 10); // 蜂鸣+闪灯报警，闪3下
+      // 2. 断电后再慢慢清空大脑记忆
+      PID_Init(&PID_Yaw);
+      PID_Init(&PID_Pitch);
 
-
-      /* USER CODE END WHILE */
-
-      /* USER CODE BEGIN 3 */
+      Alarm_Start_Beep(&MyAlarm, 3);
+      Alarm_Start_Blink(&MyAlarm, 1);
     }
     // 核心：一刻不停地检查串口缓冲区是否有新数据 (非阻塞)
     Vision_Data_Proceed();

@@ -5,7 +5,7 @@
 
 // 暴露给外部的全局变量，方便按键中断修改
 extern uint8_t System_Mode;
-
+extern uint8_t System_Run;
 // 函数声明
 void Task_Init(void);
 void Task_Scheduler(void);
